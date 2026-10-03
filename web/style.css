@@ -59,6 +59,8 @@ main{display:flex;flex:1;flex-direction:column;min-height:0;width:100%;max-width
 .chat-title{flex:1;text-align:left;background:transparent;color:var(--text);font-size:13px;font-weight:500;min-height:40px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:8px 10px}
 .chat-del{font-size:11px;min-width:32px;min-height:32px;visibility:hidden}
 .chat-row:hover .chat-del,.chat-row.active .chat-del{visibility:visible}
+.run-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:#22301f;color:var(--mint);white-space:nowrap}
+.run-badge.alert{background:#3a2a1d;color:#fbbf24}
 
 /* chat feed */
 #feed{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin}

@@ -91,11 +91,14 @@
     <input id="setup-url" type="url" placeholder="https://api.your-provider.com/v1" autocomplete="off" autocapitalize="none" spellcheck="false">
     <label for="setup-key">API key</label>
     <div class="secret-input"><input id="setup-key" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Paste your key"><button id="setup-show-key" type="button" class="ghost">Show</button></div>
+    <p id="setup-key-hint" class="muted" hidden>Key already saved on your cloud backend — leave blank to keep it.</p>
     <div class="setup-row">
       <div><label for="setup-kind">API format</label><select id="setup-kind"><option value="custom">OpenAI Chat Completions</option><option value="anthropic">Claude Messages</option><option value="responses">OpenAI Responses</option><option value="gemini">Google Gemini</option><option value="azure">Azure OpenAI</option><option value="ollama">Ollama</option></select></div>
       <div><label for="setup-auth">Key header</label><select id="setup-auth"><option value="auto">Provider default</option><option value="bearer">Authorization: Bearer</option><option value="api-key">x-api-key</option><option value="api-key-header">api-key</option><option value="x-goog-api-key">x-goog-api-key</option><option value="none">None · local</option><option value="custom">Custom…</option></select></div>
     </div>
     <div id="setup-header-row" hidden><label for="setup-header">Custom header name</label><input id="setup-header" placeholder="X-API-Key" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+    <label for="setup-perms">Agent permissions</label>
+    <select id="setup-perms"><option value="ask">Ask before edits, commands &amp; tools</option><option value="auto">Auto-approve everything (no prompts)</option></select>
     <p id="setup-endpoint" class="endpoint-preview"></p>
     <button id="setup-discover" type="button" class="secondary">Discover models</button>
     <div id="setup-model-row" hidden><label for="setup-model">Model</label><select id="setup-model"></select></div>

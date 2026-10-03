@@ -106,6 +106,36 @@ test('setup dialog discovers models, saves without the key in storage, and fills
   assert.ok(stored.includes('model-a'));assert.ok(!stored.includes('test-key'));
   assert.equal(a.keys().default,'test-key');
 });
+test('chat model picker offers Model settings which re-opens the setup dialog',async t=>{
+  const a=await setup(t);
+  await openSetup(a);
+  a.change('setup-preset','custom');
+  a.input('setup-name','Test gateway');a.input('setup-url','https://example.com/v1');a.input('setup-key','test-key');
+  a.d.querySelector('#setup-discover').click();
+  await wait(()=>!a.d.querySelector('#setup-discover').disabled);
+  a.d.querySelector('#setup-save').click();
+  const sel=a.d.querySelector('#chat-model');
+  const opt=[...sel.options].find(o=>o.value==='__settings');
+  assert.ok(opt,'settings option present');
+  a.change('chat-model','__settings');
+  await wait(()=>a.d.querySelector('#setup-dialog').open);
+  assert.equal(a.d.querySelector('#setup-name').value,'Test gateway');
+});
+test('setup dialog saves the permission mode on the profile',async t=>{
+  const a=await setup(t);
+  await openSetup(a);
+  assert.equal(a.d.querySelector('#setup-perms').value,'ask');
+  a.change('setup-preset','custom');
+  a.input('setup-name','Test gateway');a.input('setup-url','https://example.com/v1');a.input('setup-key','test-key');
+  a.change('setup-perms','auto');
+  a.d.querySelector('#setup-discover').click();
+  await wait(()=>!a.d.querySelector('#setup-discover').disabled);
+  a.d.querySelector('#setup-save').click();
+  const stored=JSON.parse(a.w.localStorage.getItem('forge.profile.v1'));
+  assert.equal(stored.autoApprove,true);
+  await openSetup(a);
+  assert.equal(a.d.querySelector('#setup-perms').value,'auto');
+});
 test('chat test reports a 401 until the key is corrected',async t=>{
   const a=await setup(t);await openSetup(a);
   a.change('setup-preset','custom');

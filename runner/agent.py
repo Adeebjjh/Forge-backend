@@ -26,6 +26,8 @@ class Run:
         self.status = 'running'
         self.cancelled = threading.Event()
         self.lock = threading.RLock()
+        self.auto_approve = bool(profile.get('autoApprove'))
+        self.chat_id = None  # set by server.py from the app's chat id
         self.add('user', prompt)
 
     def add(self, kind, text, **extra):
@@ -34,17 +36,21 @@ class Run:
 
     def snapshot(self):
         with self.lock:
-            return copy.deepcopy({'id': self.id, 'status': self.status, 'events': self.events,
+            return copy.deepcopy({'id': self.id, 'status': self.status, 'chatId': self.chat_id,
+                'events': self.events,
                 'pending': [{k: v for k, v in p.items() if k not in ('event', 'decision')}
                             for p in self.pending.values()]})
 
     def approve(self, title, details):
+        if self.auto_approve:
+            self.add('approval', 'Auto-approved: ' + title)
+            return True
         aid, wake = secrets.token_hex(8), threading.Event()
         with self.lock:
             self.pending[aid] = {'id': aid, 'title': title, 'details': details,
                                  'event': wake, 'decision': None}
             self.status = 'approval'
-        deadline = time.monotonic() + 600
+        deadline = time.monotonic() + 1800
         while not wake.wait(.2):
             if self.cancelled.is_set() or time.monotonic() >= deadline:
                 break

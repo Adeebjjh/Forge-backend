@@ -157,6 +157,18 @@ class ApprovalTests(unittest.TestCase):
             run.cancelled.set();thread.join(3)
         self.assertEqual(run.status,'cancelled')
         self.assertFalse((self.ws.root/'new.py').exists())
+    def test_auto_approve_skips_prompt(self):
+        run=Run(self.ws,{'kind':'ollama','model':'test','apiKey':'secret','autoApprove':True},'write a file',[])
+        self.assertTrue(run.auto_approve)
+        self.assertTrue(run.approve('Edit new.py','details'))
+        snap=run.snapshot()
+        self.assertEqual(snap['pending'],[])
+        self.assertTrue(any('Auto-approved' in e['text'] for e in snap['events']))
+    def test_chat_id_in_snapshot(self):
+        run=Run(self.ws,{'kind':'ollama','model':'test'},'hi',[])
+        self.assertIsNone(run.snapshot()['chatId'])
+        run.chat_id='chat-1'
+        self.assertEqual(run.snapshot()['chatId'],'chat-1')
     def test_edit_changed_after_approval(self):
         run,responses=self.start_edit()
         with patch.object(Provider,'turn',side_effect=responses):
@@ -222,6 +234,15 @@ class HTTPTests(unittest.TestCase):
             wait_for(lambda:self.state.runs[result['id']].status=='done')
         run=self.req('/api/runs/'+result['id'])
         self.assertEqual(run['events'][-1]['text'],'Hello from test provider')
+    def test_run_chat_id_roundtrip(self):
+        with patch.object(Provider,'turn',return_value=('hi',[])):
+            result=self.req('/api/runs',{'prompt':'hello','profile':{'kind':'ollama','model':'test'},'chatId':'chat-9'})
+            wait_for(lambda:self.state.runs[result['id']].status=='done')
+        runs=self.req('/api/runs')['runs']
+        match=[r for r in runs if r['id']==result['id']]
+        self.assertEqual(len(match),1)
+        self.assertEqual(match[0]['chatId'],'chat-9')
+        self.assertEqual(self.req('/api/runs/'+result['id'])['chatId'],'chat-9')
 
 
 class MCPTests(unittest.TestCase):

@@ -235,7 +235,7 @@ def handler(state):
                         raw = base64.b64decode(content, validate=True)
                     except Exception:
                         raise ValueError('content must be valid base64.')
-                    if len(raw) > 5_000_000:
+                    if len(raw) > 5 * 1024 * 1024:
                         raise ValueError('File exceeds 5 MB.')
                     dest = ws.path('uploads/' + name.strip())
                     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -303,7 +303,10 @@ def handler(state):
                     return self.respond(200, {'ok': True})
                 if path == '/api/runs' and method == 'GET':
                     with state.lock:
-                        runs = [{'id': r.id, 'prompt': r.prompt[:100], 'status': r.status} for r in state.runs.values()]
+                        runs = [{'id': r.id, 'prompt': r.prompt[:100], 'status': r.status,
+                                 'chatId': r.chat_id}
+                                for r in state.runs.values()
+                                if device is None or getattr(r, 'device', None) == device]
                     return self.respond(200, {'runs': runs})
                 if path == '/api/runs' and method == 'POST':
                     prompt = data.get('prompt', '')
@@ -339,6 +342,8 @@ def handler(state):
                             state.runs.pop(next(iter(state.runs)))
                         run = Run(ws, profile, prompt, state.connectors, history, skills)
                         run.device = device
+                        chat_id = data.get('chatId')
+                        run.chat_id = chat_id if isinstance(chat_id, str) and chat_id else None
                         state.runs[run.id] = run
                         threading.Thread(target=run.work, daemon=True).start()
                     return self.respond(201, {'id': run.id})

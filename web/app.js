@@ -165,6 +165,7 @@ function renderChatModel() {
     for (const m of profile.models) sel.add(new Option(m.name && m.name !== m.id ? m.name + ' · ' + m.id : m.id, m.id));
     if (profile.models.some(m => m.id === profile.model)) sel.value = profile.model;
     else { profile.model = profile.models[0].id; sel.value = profile.model; try { persistProfile(); } catch (_) {} }
+    sel.add(new Option('⚙ Model settings…', '__settings'));
   } else {
     sel.add(new Option(profile ? '⚙ Set up models…' : '⚙ Set up your model…', ''));
   }
@@ -199,6 +200,13 @@ function renderChats() {
     const row = document.createElement('div'); row.className = 'chat-row' + (c.id === currentChatId ? ' active' : '');
     const b = document.createElement('button'); b.className = 'chat-title'; b.textContent = c.title || 'New chat';
     b.onclick = () => { switchChat(c.id); closeDrawer(); };
+    if (activeRun && activeRun.chatId === c.id) {
+      const badge = document.createElement('span');
+      badge.className = 'run-badge' + (activeRun.pendingCount ? ' alert' : '');
+      badge.textContent = activeRun.pendingCount ? '⚠ approval needed' : '● working';
+      badge.setAttribute('aria-label', badge.textContent);
+      b.append(' ', badge);
+    }
     const del = document.createElement('button'); del.className = 'icon-btn chat-del'; del.setAttribute('aria-label', 'Delete chat'); del.textContent = '✕';
     del.onclick = e => {
       e.stopPropagation();
@@ -217,7 +225,7 @@ function welcomeMarkup() {
     '<button data-prompt="Look at this project and explain what it does. Make no changes."><div>Explain this project</div></button>' +
     '<button data-prompt="Look at this project, find a concrete bug, and fix it with a test."><div>Find and fix a bug</div></button>' +
     '<button data-prompt="What is the most valuable missing test in this project? Ask before writing it."><div>Suggest a test</div></button>' +
-    '</div><div class="trust"><span>◇</span> You approve edits, commands, and tool calls before they run.</div></div>';
+    '</div><div class="trust"><span>◇</span> ' + (profile && profile.autoApprove ? 'Auto-approve is on — the agent runs edits, commands & tools without asking. Change it in Model settings.' : 'You approve edits, commands, and tool calls before they run.') + '</div></div>';
 }
 function switchChat(id) {
   currentChatId = id; saveChats(); renderChats();
@@ -250,6 +258,7 @@ async function connect() {
     toast('Runner online');
     if (githubToken) { try { await api('/api/github', 'POST', {token: githubToken}); } catch (_) {} }
     pullProviderKeys().finally(() => { if (typeof refreshGitHub === 'function') refreshGitHub(); });
+    reattachRuns();
   } catch (e) {
     connected = false; sharedActive = false;
     $('connection').classList.remove('connected'); $('connection').querySelector('span').textContent = 'Connect';
@@ -377,7 +386,7 @@ function renderApprovals(items) {
     const card = document.createElement('div'); card.className = 'approval-card';
     const h = document.createElement('h3'); h.textContent = item.title;
     const pre = document.createElement('pre'); pre.textContent = item.details;
-    const note = document.createElement('p'); note.className = 'hint'; note.textContent = 'Waiting for your decision · expires in 10 minutes';
+    const note = document.createElement('p'); note.className = 'hint'; note.textContent = 'Waiting for your decision · expires in 30 minutes';
     card.append(h, pre, note);
     for (const allow of [true, false]) {
       const b = document.createElement('button'); b.className = allow ? 'primary' : 'secondary'; b.textContent = allow ? 'Approve' : 'Deny';
@@ -392,6 +401,23 @@ function renderApprovals(items) {
   }
 }
 function setBusy(busy) { $('send').disabled = busy; $('stop').hidden = !busy; }
+
+/* Re-attach to runs that are still alive on the runner (e.g. after an app restart). */
+async function reattachRuns() {
+  if (activeRun) return;
+  let runs = [];
+  try { runs = (await api('/api/runs')).runs || []; } catch (_) { return; }
+  const live = runs.filter(r => r.status === 'running' || r.status === 'approval');
+  if (!live.length) return;
+  const pick = live.find(r => r.chatId && chats.some(c => c.id === r.chatId)) || live[0];
+  const chat = chats.find(c => c.id === pick.chatId);
+  const chatId = chat ? chat.id : currentChatId;
+  activeRun = {id: pick.id, chatId, rendered: 0, events: [], history: (chat ? chat.messages : []).slice(), pendingCount: 0};
+  if (chat && chat.id !== currentChatId) switchChat(chat.id);
+  else { renderChats(); }
+  toast(pick.status === 'approval' ? 'Reconnected — the agent is waiting for your approval.' : 'Reconnected to your running agent.');
+  schedulePoll(50);
+}
 
 /* ---------------- run loop ---------------- */
 function schedulePoll(delay = 900) { clearTimeout(pollTimer); pollTimer = setTimeout(poll, delay); }
@@ -411,6 +437,8 @@ async function poll() {
     }
     run.rendered = r.events.length;
     const busy = ['running', 'approval'].includes(r.status);
+    const pc = (r.pending || []).length;
+    if (run.pendingCount !== pc) { run.pendingCount = pc; renderChats(); }
     if (viewing) {
       setBusy(busy);
       $('run-status').textContent = r.status === 'approval' ? 'Your approval is needed' : r.status === 'running' ? 'Forge is working…' : 'Done';
@@ -421,14 +449,14 @@ async function poll() {
     if (chat) {
       const fresh = r.events.filter(e => ['user', 'assistant'].includes(e.type)).map(e => ({role: e.type, content: e.text}));
       chat.messages = run.history.concat(fresh);
-      chat.updatedAt = Date.now(); saveChats(); renderChats();
+      chat.updatedAt = Date.now(); saveChats();
     }
-    activeRun = null;
+    activeRun = null; renderChats();
     if (viewing) { setBusy(false); $('run-status').textContent = r.status === 'done' ? 'Done' : 'Task ' + r.status; }
   } catch (e) {
     if (activeRun !== run) return;
     if (e.status === 401 || e.status === 404) {
-      activeRun = null; setBusy(false);
+      activeRun = null; setBusy(false); renderChats();
       $('run-status').textContent = e.status === 401 ? 'Reconnect your runner' : 'Task expired after runner restart';
       if (e.status === 401) { connected = false; $('connection').classList.remove('connected'); $('connection').querySelector('span').textContent = 'Connect'; }
       if (run.chatId === currentChatId) renderEvent({type: 'error', text: e.message});
@@ -459,8 +487,8 @@ async function sendTask() {
     }
     if (parts.length) prompt = parts.join('\n\n') + (prompt ? '\n\n' + prompt : '');
     if (!prompt.trim()) throw new Error('Write a message first.');
-    const r = await api('/api/runs', 'POST', {prompt, profile: fullProfile, history, skills: selectedSkills});
-    activeRun = {id: r.id, chatId: chat.id, rendered: 0, events: [], history};
+    const r = await api('/api/runs', 'POST', {prompt, profile: fullProfile, history, skills: selectedSkills, chatId: chat.id});
+    activeRun = {id: r.id, chatId: chat.id, rendered: 0, events: [], history, pendingCount: 0};
     if (!chat.messages.length) chat.title = ($('prompt').value.trim() || pendingAttachments.map(a => a.name).join(', ')).slice(0, 42) || 'New chat';
     $('prompt').value = ''; clearAttachments(); $('feed').replaceChildren(); $('approvals').replaceChildren();
     for (const m of history) renderEvent({type: m.role, text: m.content});
@@ -538,7 +566,9 @@ function openSetup() {
   }
   $('setup-preset').value = presetId;
   $('setup-name').value = p.name || ''; $('setup-url').value = p.baseUrl || ''; $('setup-key').value = profileKey || '';
+  $('setup-key-hint').hidden = !(sharedActive && profile);
   $('setup-kind').value = p.kind || 'custom'; $('setup-auth').value = p.authMode || 'auto';
+  $('setup-perms').value = p.autoApprove ? 'auto' : 'ask';
   $('setup-header').value = p.customHeader || ''; $('setup-header-row').hidden = ($('setup-auth').value !== 'custom');
   renderSetupModels(); updateSetupEndpoint();
   $('setup-dialog').showModal();
@@ -555,6 +585,7 @@ function setupProfile() {
     name: $('setup-name').value.trim(), kind, protocol: protocols[kind], baseUrl: $('setup-url').value.trim(),
     apiKey: normalizeKey($('setup-key').value), authMode: $('setup-auth').value,
     customHeader: $('setup-auth').value === 'custom' ? $('setup-header').value.trim() : '',
+    autoApprove: $('setup-perms').value === 'auto',
     models: [...setupModels], model: $('setup-model').value || '', validation: (profile && profile.validation) || null
   };
 }
@@ -620,16 +651,25 @@ async function saveSetup() {
     const p = setupProfile();
     if (!p.name || !p.baseUrl) throw new Error('Enter a name and API base URL.');
     if (!p.model) throw new Error('Discover models and pick one first.');
-    if (needsKey(p) && !p.apiKey) throw new Error('Enter your API key.');
+    let keepBackendKey = false;
+    if (needsKey(p) && !p.apiKey) {
+      if (sharedActive) {
+        // Editing in shared mode: a key already on the backend can stay — no need to re-enter it.
+        const r = await api('/api/provider-keys').catch(() => ({providers: []}));
+        keepBackendKey = (r.providers || []).some(x => x.url === p.baseUrl);
+        if (!keepBackendKey) throw new Error('Enter your API key.');
+      } else throw new Error('Enter your API key.');
+    }
     if (!p.models.some(m => m.id === p.model)) p.models.push({id: p.model, name: p.model});
     profileKey = p.apiKey; profile = {...p}; delete profile.apiKey;
     persistProfile(); renderChatModel(); setupRevision++;
     if (sharedActive) {
-      // Keys live ONLY on the backend: push, then wipe every local copy.
-      await pushProviderKey(true);
+      // Keys live ONLY on the backend: push a newly entered key, then wipe every local copy.
+      if (p.apiKey) await pushProviderKey(true);
       profileKey = '';
       persistProfile();
-      $('setup-dialog').close(); toast('Model ready — your key is stored safely on the cloud backend.');
+      $('setup-dialog').close();
+      toast(keepBackendKey ? 'Model updated — kept your saved key.' : 'Model ready — your key is stored safely on the cloud backend.');
     } else {
       pushProviderKey();
       $('setup-dialog').close(); toast('Model ready. Say hi.');
@@ -681,7 +721,7 @@ $('stop').onclick = async () => {
   catch (e) { toast(e.message); }
 };
 $('chat-model').onchange = e => {
-  if (e.target.value === '') { openSetup(); renderChatModel(); return; }
+  if (e.target.value === '' || e.target.value === '__settings') { openSetup(); renderChatModel(); return; }
   if (profile) { try { profile.model = e.target.value; profile.validation = null; persistProfile(); } catch (err) { toast(err.message); } }
 };
 $('attach').onclick = () => $('attach-input').click();

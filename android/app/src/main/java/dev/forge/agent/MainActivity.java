@@ -2,8 +2,10 @@ package dev.forge.agent;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.security.keystore.KeyGenParameterSpec;
@@ -14,6 +16,7 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -51,6 +54,8 @@ public class MainActivity extends Activity {
     private volatile String runnerUrl = "", runnerToken = "";
     private DeviceRunner deviceRunner;
     private volatile boolean devicePaired = false;
+    private ValueCallback<Uri[]> fileChooser;
+    private static final int FILE_CHOOSER_REQUEST = 1001;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -69,7 +74,22 @@ public class MainActivity extends Activity {
         s.setBlockNetworkLoads(true); // Only bundled assets render; network requests use the scoped native bridge.
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         if (Build.VERSION.SDK_INT >= 26) s.setSafeBrowsingEnabled(true);
-        web.setWebChromeClient(new WebChromeClient());
+        // File uploads (<input type=file>) need an explicit chooser: without this the attach button silently does nothing.
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (fileChooser != null) fileChooser.onReceiveValue(null);
+                fileChooser = callback;
+                Intent intent = params.createIntent();
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                try {
+                    startActivityForResult(Intent.createChooser(intent, "Select file"), FILE_CHOOSER_REQUEST);
+                } catch (Exception e) {
+                    fileChooser = null;
+                    return false;
+                }
+                return true;
+            }
+        });
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return !request.getUrl().toString().equals(ORIGIN + "/index.html");
@@ -340,5 +360,23 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> web.evaluateJavascript("window.onNativeConfigured && window.onNativeConfigured()",null));
     }
     void notifyCloudChanged() { web.evaluateJavascript("window.onCloudConfigured && window.onCloudConfigured()",null); }
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != FILE_CHOOSER_REQUEST || fileChooser == null) return;
+        ValueCallback<Uri[]> callback = fileChooser;
+        fileChooser = null;
+        if (resultCode != Activity.RESULT_OK || data == null) { callback.onReceiveValue(null); return; }
+        android.content.ClipData clip = data.getClipData();
+        if (clip != null && clip.getItemCount() > 0) {
+            int n = Math.min(clip.getItemCount(), 32);
+            Uri[] uris = new Uri[n];
+            for (int i = 0; i < n; i++) uris[i] = clip.getItemAt(i).getUri();
+            callback.onReceiveValue(uris);
+        } else if (data.getData() != null) {
+            callback.onReceiveValue(new Uri[]{data.getData()});
+        } else {
+            callback.onReceiveValue(null);
+        }
+    }
     @Override protected void onDestroy() { pool.shutdownNow(); try { deviceRunner.stop(); } catch (Exception ignored) {} web.removeJavascriptInterface("ForgeNative"); web.destroy(); super.onDestroy(); }
 }
