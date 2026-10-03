@@ -387,13 +387,49 @@ async function openSkills() {
 }
 
 /* ---------------- rendering ---------------- */
+/* ---------------- markdown ---------------- */
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+}
+function renderMarkdown(text) {
+  const blocks = [];
+  // Fenced code blocks first (content stays escaped, never re-processed).
+  let src = escapeHtml(text).replace(/```(\w*)\n?([\s\S]*?)(?:```|$)/g, (m, lang, code) => {
+    blocks.push('<div class="codeblock"><div class="codeblock-head"><span>' + escapeHtml(lang || 'code') +
+      '</span><button type="button" class="ghost code-copy">Copy</button></div><pre><code>' +
+      code.replace(/\n+$/, '') + '</code></pre></div>');
+    return '\u0000' + (blocks.length - 1) + '\u0000';
+  });
+  const inline = s => s
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*\w])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  let out = '', inList = false, inQuote = false;
+  const closeBlocks = () => { if (inList) { out += '</ul>'; inList = false; } if (inQuote) { out += '</blockquote>'; inQuote = false; } };
+  for (const line of src.split('\n')) {
+    const ph = line.match(/^\u0000(\d+)\u0000$/);
+    if (ph) { closeBlocks(); out += blocks[+ph[1]]; continue; }
+    let m;
+    if ((m = line.match(/^(#{1,4})\s+(.*)/))) { closeBlocks(); const l = m[1].length; out += '<h' + l + '>' + inline(m[2]) + '</h' + l + '>'; continue; }
+    if ((m = line.match(/^>\s?(.*)/))) { if (!inQuote) { if (inList) { out += '</ul>'; inList = false; } out += '<blockquote>'; inQuote = true; } out += inline(m[1]) + '<br>'; continue; }
+    if ((m = line.match(/^[-*]\s+(.*)/))) { if (inQuote) { out += '</blockquote>'; inQuote = false; } if (!inList) { out += '<ul>'; inList = true; } out += '<li>' + inline(m[1]) + '</li>'; continue; }
+    closeBlocks();
+    if (/^\s*$/.test(line)) continue;
+    out += '<p>' + inline(line) + '</p>';
+  }
+  closeBlocks();
+  return out;
+}
 function renderEvent(e) {
   const div = document.createElement('div');
   if (['user', 'assistant', 'error'].includes(e.type)) {
     div.className = 'message ' + e.type;
     const label = document.createElement('div'); label.className = 'message-label';
     label.textContent = e.type === 'user' ? 'You' : e.type === 'error' ? 'Something needs attention' : 'Forge';
-    const body = document.createElement('div'); body.className = 'message-text'; body.textContent = e.text;
+    const body = document.createElement('div'); body.className = 'message-text';
+    if (e.type === 'assistant') body.innerHTML = renderMarkdown(e.text);
+    else body.textContent = e.text;
     div.append(label, body);
     if (e.type === 'error') { const b = document.createElement('button'); b.className = 'secondary'; b.textContent = 'Check model setup'; b.onclick = () => openSetup(); div.append(b); }
   } else if (e.type === 'tool') {
@@ -733,6 +769,16 @@ function filterFiles() {
 
 /* ---------------- wiring ---------------- */
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.page));
+$('feed').addEventListener('click', e => {
+  const btn = e.target.closest('.code-copy'); if (!btn) return;
+  const code = btn.closest('.codeblock').querySelector('code').textContent;
+  const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, () => toast('Copy failed.'));
+  else {
+    const ta = document.createElement('textarea'); ta.value = code; document.body.append(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (_) { toast('Copy failed.'); } ta.remove();
+  }
+});
 $('menu').onclick = openDrawer; $('drawer-close').onclick = closeDrawer; $('drawer-scrim').onclick = closeDrawer;
 $('drawer-new').onclick = () => { newChat(); closeDrawer(); };
 $('feed').addEventListener('click', e => { const b = e.target.closest('[data-prompt]'); if (b) { $('prompt').value = b.dataset.prompt; $('prompt').focus(); } });
@@ -751,6 +797,34 @@ $('chat-model').onchange = e => {
   if (profile) { try { profile.model = e.target.value; profile.validation = null; persistProfile(); } catch (err) { toast(err.message); } }
 };
 $('attach').onclick = () => $('attach-input').click();
+/* ---------------- voice input ---------------- */
+function insertAtPrompt(text) {
+  const p = $('prompt');
+  p.value = (p.value ? p.value.replace(/\s+$/, '') + ' ' : '') + text;
+  p.focus();
+}
+let voiceRecognition = null;
+$('mic').onclick = async () => {
+  if (native) {
+    $('mic').classList.add('listening');
+    try { const text = await nativeCall('voiceInput'); if (text && text.trim()) insertAtPrompt(text.trim()); }
+    catch (e) { toast(e.message); }
+    finally { $('mic').classList.remove('listening'); }
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return toast('Voice input is not available in this browser.');
+  if (voiceRecognition) { try { voiceRecognition.stop(); } catch (_) {} return; }
+  try {
+    const rec = new SR(); voiceRecognition = rec;
+    rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
+    rec.onresult = e => insertAtPrompt(e.results[0][0].transcript);
+    const end = () => { voiceRecognition = null; $('mic').classList.remove('listening'); };
+    rec.onend = end;
+    rec.onerror = () => { toast('Voice input failed.'); end(); };
+    rec.start(); $('mic').classList.add('listening');
+  } catch (_) { voiceRecognition = null; toast('Voice input failed.'); }
+};
 $('attach-input').onchange = async e => {
   const files = Array.from(e.target.files || []);
   for (const f of files) {

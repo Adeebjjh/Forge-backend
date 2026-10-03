@@ -155,6 +155,26 @@ test('settings page shows the provider and the permission toggle works',async t=
   const stored=JSON.parse(a.w.localStorage.getItem('forge.profile.v1'));
   assert.equal(stored.autoApprove,true);
 });
+test('markdown renders code blocks, formatting and lists safely',async t=>{
+  const a=await setup(t);
+  const html=a.eval(`renderMarkdown('# Title\\n\\nHello **bold** and *italic* with \`code\`.\\n\\n- one\\n- two\\n\\n[link](https://example.com)\\n\\n\`\`\`python\\nprint(1)\\n\`\`\`\\n\\n<script>alert(1)</script>')`);
+  assert.match(html,/<h1>Title<\/h1>/);
+  assert.match(html,/<strong>bold<\/strong>/);
+  assert.match(html,/<em>italic<\/em>/);
+  assert.match(html,/<code>code<\/code>/);
+  assert.match(html,/<ul>.*<li>one<\/li>.*<li>two<\/li>.*<\/ul>/s);
+  assert.match(html,/<a href="https:\/\/example\.com"/);
+  assert.match(html,/class="codeblock"/);
+  assert.match(html,/print\(1\)/);
+  assert.ok(!html.includes('<script>'),'script tag escaped');
+});
+test('assistant messages render as markdown in the feed',async t=>{
+  const a=await setup(t);
+  a.eval(`renderEvent({type:'assistant',text:'Try:\\n\\n\`\`\`js\\nconst x = 1;\\n\`\`\`'})`);
+  const body=a.d.querySelector('#feed .message.assistant .message-text');
+  assert.ok(body.querySelector('.codeblock'),'code block rendered');
+  assert.ok(body.querySelector('.code-copy'),'copy button rendered');
+});
 test('chat test reports a 401 until the key is corrected',async t=>{
   const a=await setup(t);await openSetup(a);
   a.change('setup-preset','custom');

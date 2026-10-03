@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.speech.RecognizerIntent;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.text.InputType;
@@ -37,6 +38,7 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -56,6 +58,8 @@ public class MainActivity extends Activity {
     private volatile boolean devicePaired = false;
     private ValueCallback<Uri[]> fileChooser;
     private static final int FILE_CHOOSER_REQUEST = 1001;
+    private static final int VOICE_REQUEST = 1002;
+    private String voiceCallbackId;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -263,6 +267,17 @@ public class MainActivity extends Activity {
             }catch(Exception ignored){}
         }
         @JavascriptInterface public void configure() { runOnUiThread(() -> configureRunner()); }
+        @JavascriptInterface public void voiceInput(String id) {
+            runOnUiThread(() -> {
+                try {
+                    Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                    intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                    intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now");
+                    voiceCallbackId = id;
+                    startActivityForResult(intent, VOICE_REQUEST);
+                } catch (Exception e) { voiceCallbackId = null; callback(id, 400, "{\"error\":\"Voice input is not available on this device.\"}"); }
+            });
+        }
         @JavascriptInterface public void provisionShared(String id, String value) {
             // Silent first-launch provisioning on the owner's shared Railway backend.
             // value: {"url":"https://...","device":"<id>"}. Saves the per-device token like a pairing.
@@ -362,6 +377,19 @@ public class MainActivity extends Activity {
     void notifyCloudChanged() { web.evaluateJavascript("window.onCloudConfigured && window.onCloudConfigured()",null); }
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == VOICE_REQUEST) {
+            String id = voiceCallbackId; voiceCallbackId = null;
+            if (id != null) {
+                if (resultCode == Activity.RESULT_OK && data != null) {
+                    ArrayList<String> results = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+                    String text = (results != null && !results.isEmpty()) ? results.get(0) : "";
+                    callback(id, 200, JSONObject.quote(text));
+                } else {
+                    callback(id, 400, "{\"error\":\"Voice input was cancelled.\"}");
+                }
+            }
+            return;
+        }
         if (requestCode != FILE_CHOOSER_REQUEST || fileChooser == null) return;
         ValueCallback<Uri[]> callback = fileChooser;
         fileChooser = null;

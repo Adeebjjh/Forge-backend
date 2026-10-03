@@ -63,6 +63,20 @@ main{display:flex;flex:1;flex-direction:column;min-height:0;width:100%;max-width
 .run-badge.alert{background:#3a2a1d;color:#fbbf24}
 .perm-toggle{display:flex;gap:8px;margin-top:4px}
 .perm-toggle button{flex:1}
+/* markdown in chat */
+.message-text p{margin:0 0 8px}.message-text p:last-child{margin-bottom:0}
+.message-text h1,.message-text h2,.message-text h3,.message-text h4{margin:12px 0 6px;font-size:15px}
+.message-text ul{margin:0 0 8px;padding-left:20px}.message-text li{margin:2px 0}
+.message-text blockquote{margin:0 0 8px;padding:6px 10px;border-left:3px solid var(--border);color:var(--muted)}
+.message-text code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;background:#111613;padding:1px 6px;border-radius:6px}
+.message-text a{color:var(--mint)}
+.codeblock{margin:8px 0;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.codeblock-head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--panel2);font-size:11px;color:var(--muted)}
+.codeblock pre{margin:0;padding:10px;overflow-x:auto;background:#111613}
+.codeblock pre code{background:none;padding:0}
+.code-copy{font-size:11px;padding:4px 10px}
+#mic.listening{background:#3a2a1d;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
 /* chat feed */
 #feed{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin}

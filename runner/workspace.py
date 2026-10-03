@@ -35,6 +35,10 @@ TOOLS = [
            {'repo': STR, 'path': STR, 'ref': STR}, ['repo', 'path']),
     schema('github_create_pr', 'Open a GitHub pull request that creates or updates files, after user approval. Needs GitHub connected in Cloud.',
            {'repo': STR, 'title': STR, 'files': {'type': 'object'}, 'body': STR, 'base': STR}, ['repo', 'title', 'files']),
+    schema('web_search', 'Search the web for current information, documentation, or solutions. Returns titles, URLs and snippets. No approval needed.',
+           {'query': STR, 'count': {'type': 'integer', 'minimum': 1, 'maximum': 10}}, ['query']),
+    schema('fetch_url', 'Fetch a public web page (http/https) and return its text content, up to ~8000 characters. For reading docs or articles. No approval needed.',
+           {'url': STR}, ['url']),
 ]
 
 
@@ -132,6 +136,12 @@ class Workspace:
             url = _gh.create_pr(args['repo'], args['title'], args.get('files') or {},
                                 args.get('body') or '', args.get('base') or 'main', workspace=self)
             return 'Pull request opened: ' + url
+        if name == 'web_search':
+            from . import webtools as _wt
+            return _wt.web_search(args['query'], args.get('count', 5))
+        if name == 'fetch_url':
+            from . import webtools as _wt
+            return _wt.fetch_url(args['url'])
         raise ValueError('Unknown tool.')
 
     def fetch_repo(self, repo, ref='main', dest=None):
