@@ -61,6 +61,8 @@ main{display:flex;flex:1;flex-direction:column;min-height:0;width:100%;max-width
 .chat-row:hover .chat-del,.chat-row.active .chat-del{visibility:visible}
 .run-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:#22301f;color:var(--mint);white-space:nowrap}
 .run-badge.alert{background:#3a2a1d;color:#fbbf24}
+.perm-toggle{display:flex;gap:8px;margin-top:4px}
+.perm-toggle button{flex:1}
 
 /* chat feed */
 #feed{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin}

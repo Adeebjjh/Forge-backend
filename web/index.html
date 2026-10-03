@@ -40,6 +40,12 @@
       <div class="card"><h3>Fetch from GitHub</h3><p class="muted">Copy a repo into this project.</p><div class="file-actions"><input id="fetch-repo" placeholder="owner/repo" aria-label="Repository"><input id="fetch-ref" placeholder="main" aria-label="Branch or tag" style="max-width:7em"><input id="fetch-dest" placeholder="folder (optional)" aria-label="Destination folder"></div><button id="fetch-button" class="secondary">Fetch repository</button></div>
     </section>
     <section id="cloud" class="page">
+      <div class="card" id="shared-status-card" hidden>
+        <div class="section-top"><span class="eyebrow">CLOUD BACKEND</span><span id="shared-status-badge" class="tag">ONLINE</span></div>
+        <h3>Managed for you</h3>
+        <p class="muted">Your agent runs on your private cloud backend. Files, keys and runs live there — nothing to configure.</p>
+      </div>
+
       <div class="card" id="device-card">
         <div class="section-top"><span class="eyebrow">ON-DEVICE RUNNER</span><span id="device-badge" class="tag">…</span></div>
         <h3>This phone is the computer</h3>
@@ -59,6 +65,30 @@
         <div class="cloud-actions"><button id="railway-deploy" class="secondary">Deploy on Railway ↗</button><button id="railway-connect" class="primary">Connect</button></div>
         <p class="hint">Enter the Railway URL (https://…) and your pairing token. Traffic is encrypted with HTTPS. The app reconnects automatically on launch.</p>
       </div>
+        <h3>Let Forge work with your repos</h3>
+        <p id="github-status" class="muted">Connect GitHub so the agent can read your repositories and open pull requests.</p>
+        <div id="github-form">
+          <label for="github-token">Personal access token</label>
+          <div class="secret-input"><input id="github-token" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="ghp_… or fine-grained token"><button id="github-show" type="button" class="ghost">Show</button></div>
+          <div class="cloud-actions"><button id="github-connect" class="primary">Connect GitHub</button></div>
+          <p class="hint">Use a fine-grained token with <strong>Contents</strong> (read/write) and <strong>Pull requests</strong> (write) on the repos you want. It lives in the runner's memory — set <code>GITHUB_TOKEN</code> on Railway to keep it across restarts.</p>
+        </div>
+        <div class="cloud-actions"><button id="github-disconnect" class="danger" hidden>Disconnect</button></div>
+      </div>
+    </section>
+    <section id="settings" class="page">
+      <div class="card">
+        <div class="section-top"><span class="eyebrow">MODEL</span><span id="settings-key-badge" class="tag">…</span></div>
+        <h3 id="settings-provider-name">No provider set up</h3>
+        <p id="settings-provider-detail" class="muted">Pick a provider to start.</p>
+        <div class="cloud-actions"><button id="settings-edit-provider" class="primary">Edit provider</button></div>
+      </div>
+      <div class="card">
+        <div class="section-top"><span class="eyebrow">AGENT PERMISSIONS</span></div>
+        <h3>When Forge wants to act</h3>
+        <p class="muted">Edits, shell commands and tool calls can ask you first — or run without prompts.</p>
+        <div class="perm-toggle"><button id="perm-ask" class="secondary">✋ Ask me first</button><button id="perm-auto" class="secondary">⚡ Auto-approve</button></div>
+      </div>
       <div class="card">
         <div class="section-top"><span class="eyebrow">GITHUB</span><span id="github-badge" class="tag">…</span></div>
         <h3>Let Forge work with your repos</h3>
@@ -71,12 +101,17 @@
         </div>
         <div class="cloud-actions"><button id="github-disconnect" class="danger" hidden>Disconnect</button></div>
       </div>
+      <div class="card">
+        <div class="section-top"><span class="eyebrow">ABOUT</span></div>
+        <p class="muted">Forge Agent v0.5.0 · <span id="settings-backend">Offline</span></p>
+      </div>
     </section>
   </main>
   <nav aria-label="Main navigation">
     <button data-page="chat" class="active"><span>💬</span>Chat</button>
     <button data-page="files"><span>📁</span>Files</button>
     <button data-page="cloud"><span>☁️</span>Cloud</button>
+    <button data-page="settings"><span>⚙️</span>Settings</button>
   </nav>
 </div>
 <dialog id="setup-dialog" aria-label="Set up your model">

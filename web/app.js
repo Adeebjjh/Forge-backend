@@ -252,8 +252,9 @@ async function connect() {
     $('connection').classList.add('connected'); $('connection').querySelector('span').textContent = 'Online';
     $('run-status').textContent = 'Ready';
     if (sharedActive) {
-      const dc = $('device-card'), rc = $('railway-card');
+      const dc = $('device-card'), rc = $('railway-card'); 
       if (dc) dc.hidden = true; if (rc) rc.hidden = true; // the backend is invisible by design
+      const sc = $('shared-status-card'); if (sc) sc.hidden = false;
     }
     toast('Runner online');
     if (githubToken) { try { await api('/api/github', 'POST', {token: githubToken}); } catch (_) {} }
@@ -287,6 +288,30 @@ async function pullProviderKeys() {
       toast('API key restored from your runner backup.');
     }
   } catch (_) {}
+}
+
+/* ---------------- settings ---------------- */
+function refreshSettings() {
+  const name = $('settings-provider-name'), detail = $('settings-provider-detail'), badge = $('settings-key-badge');
+  if (profile) {
+    name.textContent = profile.name || 'Provider';
+    detail.textContent = (profile.model || 'No model selected') + ' · ' + (profile.baseUrl || '');
+    badge.textContent = sharedActive ? 'KEY ON BACKEND' : (profileKey ? 'KEY SAVED' : 'NO KEY');
+  } else {
+    name.textContent = 'No provider set up'; detail.textContent = 'Pick a provider to start.'; badge.textContent = '…';
+  }
+  const auto = !!(profile && profile.autoApprove);
+  $('perm-ask').className = auto ? 'secondary' : 'primary';
+  $('perm-auto').className = auto ? 'primary' : 'secondary';
+  $('settings-backend').textContent = connected ? (sharedActive ? 'Cloud backend · Online' : 'Runner · Online') : 'Offline';
+  if (typeof refreshGitHub === 'function') refreshGitHub();
+}
+function setPermMode(auto) {
+  if (!profile) { openSetup(); return toast('Set up your model first.'); }
+  profile.autoApprove = auto; profile.validation = null;
+  try { persistProfile(); } catch (e) { return toast(e.message); }
+  renderChatModel(); refreshSettings();
+  toast(auto ? 'Auto-approve on — Forge will act without asking.' : 'Ask-first on — Forge will ask before acting.');
 }
 
 /* ---------------- github ---------------- */
@@ -683,6 +708,7 @@ function show(page) {
   document.querySelectorAll('nav button').forEach(e => e.classList.toggle('active', e.dataset.page === page));
   if (page === 'files' && connected) refreshFiles();
   if (page === 'cloud' && typeof refreshCloud === 'function') refreshCloud();
+  if (page === 'settings') refreshSettings();
 }
 
 /* ---------------- files (unchanged behavior) ---------------- */
@@ -759,6 +785,9 @@ $('github-show').onclick = () => {
 $('skills-btn').onclick = openSkills;
 $('skills-close').onclick = () => $('skills-dialog').close();
 $('skills-done').onclick = () => $('skills-dialog').close();
+$('settings-edit-provider').onclick = () => openSetup();
+$('perm-ask').onclick = () => setPermMode(false);
+$('perm-auto').onclick = () => setPermMode(true);
 $('refresh-files').onclick = refreshFiles; $('file-filter').oninput = filterFiles;
 $('new-file').onclick = () => { $('editor-panel').hidden = false; $('file-path').value = ''; $('file-content').value = ''; $('file-path').focus(); };
 $('close-editor').onclick = () => $('editor-panel').hidden = true;

@@ -136,6 +136,25 @@ test('setup dialog saves the permission mode on the profile',async t=>{
   await openSetup(a);
   assert.equal(a.d.querySelector('#setup-perms').value,'auto');
 });
+test('settings page shows the provider and the permission toggle works',async t=>{
+  const a=await setup(t);
+  await openSetup(a);
+  a.change('setup-preset','custom');
+  a.input('setup-name','Test gateway');a.input('setup-url','https://example.com/v1');a.input('setup-key','test-key');
+  a.d.querySelector('#setup-discover').click();
+  await wait(()=>!a.d.querySelector('#setup-discover').disabled);
+  a.d.querySelector('#setup-save').click();
+  a.eval(`show('settings')`);
+  assert.ok(a.d.querySelector('#settings').classList.contains('active'));
+  assert.equal(a.d.querySelector('#settings-provider-name').textContent,'Test gateway');
+  assert.match(a.d.querySelector('#settings-provider-detail').textContent,/example\.com/);
+  assert.equal(a.d.querySelector('#perm-ask').className,'primary');
+  a.d.querySelector('#perm-auto').click();
+  assert.equal(a.d.querySelector('#perm-auto').className,'primary');
+  assert.equal(a.d.querySelector('#perm-ask').className,'secondary');
+  const stored=JSON.parse(a.w.localStorage.getItem('forge.profile.v1'));
+  assert.equal(stored.autoApprove,true);
+});
 test('chat test reports a 401 until the key is corrected',async t=>{
   const a=await setup(t);await openSetup(a);
   a.change('setup-preset','custom');
