@@ -175,6 +175,26 @@ test('assistant messages render as markdown in the feed',async t=>{
   assert.ok(body.querySelector('.codeblock'),'code block rendered');
   assert.ok(body.querySelector('.code-copy'),'copy button rendered');
 });
+test('index.html has balanced tags and unique ids',async t=>{
+  const src=fs.readFileSync(path.join(web,'index.html'),'utf8');
+  // lightweight tag-balance check without extra deps
+  const stack=[];const errors=[];
+  const re=/<\/?([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g;let m;
+  const voidEls=new Set(['br','img','input','meta','link','hr']);
+  while((m=re.exec(src))){
+    const tag=m[1].toLowerCase(),closing=m[0][1]==='/',selfClose=/\/>$/.test(m[0]);
+    if(voidEls.has(tag)||selfClose)continue;
+    if(closing){if(stack.length&&stack[stack.length-1]===tag)stack.pop();else errors.push('mismatch </'+tag+'>');}
+    else stack.push(tag);
+  }
+  assert.deepEqual(errors,[]);
+  assert.deepEqual(stack,[]);
+  const ids=[...src.matchAll(/id="([^"]+)"/g)].map(x=>x[1]);
+  const dup=ids.filter((id,i)=>ids.indexOf(id)!==i);
+  assert.deepEqual(dup,[],'duplicate ids: '+dup.join(','));
+  for(const page of ['chat','files','cloud','settings'])
+    assert.ok(src.includes('data-page="'+page+'"'),page+' nav button present');
+});
 test('chat test reports a 401 until the key is corrected',async t=>{
   const a=await setup(t);await openSetup(a);
   a.change('setup-preset','custom');

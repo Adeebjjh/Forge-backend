@@ -66,16 +66,6 @@
         <div class="cloud-actions"><button id="railway-deploy" class="secondary">Deploy on Railway ↗</button><button id="railway-connect" class="primary">Connect</button></div>
         <p class="hint">Enter the Railway URL (https://…) and your pairing token. Traffic is encrypted with HTTPS. The app reconnects automatically on launch.</p>
       </div>
-        <h3>Let Forge work with your repos</h3>
-        <p id="github-status" class="muted">Connect GitHub so the agent can read your repositories and open pull requests.</p>
-        <div id="github-form">
-          <label for="github-token">Personal access token</label>
-          <div class="secret-input"><input id="github-token" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="ghp_… or fine-grained token"><button id="github-show" type="button" class="ghost">Show</button></div>
-          <div class="cloud-actions"><button id="github-connect" class="primary">Connect GitHub</button></div>
-          <p class="hint">Use a fine-grained token with <strong>Contents</strong> (read/write) and <strong>Pull requests</strong> (write) on the repos you want. It lives in the runner's memory — set <code>GITHUB_TOKEN</code> on Railway to keep it across restarts.</p>
-        </div>
-        <div class="cloud-actions"><button id="github-disconnect" class="danger" hidden>Disconnect</button></div>
-      </div>
     </section>
     <section id="settings" class="page">
       <div class="card">
