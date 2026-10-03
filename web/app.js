@@ -13,7 +13,7 @@ let browserToken = '', connected = false;
 // Provider API keys are stored ONLY on the backend (api.json) — never on the device.
 const SHARED_URL = (window.FORGE_SHARED_URL || '').trim();
 let sharedActive = false;       // the connected runner reported shared:true
-let provisionAttempted = false; // one silent provisioning attempt per launch
+let provisionAttempted = false; // one in-flight provisioning attempt at a time; failures reset it so Connect retries
 function deviceId() {
   try {
     let id = localStorage.getItem('forge.device.id');
@@ -25,9 +25,10 @@ function deviceId() {
     return id;
   } catch (_) { return 'd' + Date.now().toString(36); }
 }
-async function provisionShared() {
-  if (provisionAttempted || !SHARED_URL) return;
+async function provisionShared(retry) {
+  if (!SHARED_URL || provisionAttempted) return;
   provisionAttempted = true;
+  $('run-status').textContent = 'Connecting to cloud backend…';
   const device = deviceId();
   try {
     if (native) {
@@ -41,7 +42,17 @@ async function provisionShared() {
       try { localStorage.setItem('forge.device.token', browserToken); } catch (_) {}
       await connect();
     }
-  } catch (e) { toast('Cloud backend unavailable: ' + e.message); }
+  } catch (e) {
+    if (!retry && /already provisioned/i.test(e.message || '')) {
+      // Token lost but the backend still knows this device: start over with a fresh device id.
+      try { localStorage.removeItem('forge.device.id'); } catch (_) {}
+      provisionAttempted = false;
+      return provisionShared(true);
+    }
+    provisionAttempted = false; // a transient failure must not permanently disable auto-provisioning
+    $('run-status').textContent = 'Tap Connect to retry';
+    toast('Cloud backend unavailable: ' + e.message);
+  }
 }
 function sharedSameOrigin() {
   if (!SHARED_URL) return false;
@@ -241,7 +252,13 @@ function openDrawer() { $('chats-drawer').hidden = false; $('drawer-scrim').hidd
 function closeDrawer() { $('chats-drawer').hidden = true; $('drawer-scrim').hidden = true; }
 
 /* ---------------- connection ---------------- */
-function pair() { if (native) window.ForgeNative.configure(); else $('pair-dialog').showModal(); }
+function pair() {
+  if (SHARED_URL) {
+    if (connected) return; // already online — nothing to configure on a shared backend
+    provisionAttempted = false; provisionShared(); return; // (re)provision silently
+  }
+  if (native) window.ForgeNative.configure(); else $('pair-dialog').showModal();
+}
 async function connect() {
   if (!native && !browserToken) {
     try { browserToken = localStorage.getItem('forge.device.token') || ''; } catch (_) {}

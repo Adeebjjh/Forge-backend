@@ -20,7 +20,7 @@ function app({native=true, profile=null, vault={}, legacy=null, keyBackup=null, 
   if (profile) w.localStorage.setItem('forge.profile.v1',JSON.stringify(profile));
   if (legacy) { w.localStorage.setItem('forge.profiles.v2',JSON.stringify(legacy.profiles)); w.localStorage.setItem('forge.selected.v2',legacy.selected); }
   let keys=JSON.stringify(vault), delayed=null, runPrompt='', lastRun=null, githubLogin='', paired=!startUnpaired;
-  const provisionCalls=[];
+  const provisionCalls=[]; let provisionShouldFail=false;
   const answer=(id,code,payload)=>w.setTimeout(()=>w.onNativeResponse(id,code,typeof payload==='string'?payload:JSON.stringify(payload)),1);
   const bridge={
     loadProviderVault:()=>keys,saveProviderVault:value=>{keys=value;return true;},configure:()=>{},
@@ -28,6 +28,7 @@ function app({native=true, profile=null, vault={}, legacy=null, keyBackup=null, 
     deviceAction:id=>answer(id,200,{running:true,url:'http://127.0.0.1:8787',workspace:'/w',paired:true}),
     provisionShared(id,value){
       const v=JSON.parse(value);provisionCalls.push(v);
+      if(provisionShouldFail){answer(id,400,{error:'simulated backend outage'});return;}
       paired=true;
       answer(id,200,{ok:true});
       w.setTimeout(()=>w.onNativeConfigured(),1);
@@ -80,7 +81,7 @@ function app({native=true, profile=null, vault={}, legacy=null, keyBackup=null, 
   for(const script of ['app.js','cloud.js'])vm.runInContext(fs.readFileSync(path.join(web,script),'utf8'),context,{filename:script});
   const input=(id,value)=>{const el=d.getElementById(id);el.value=value;el.dispatchEvent(new w.Event('input',{bubbles:true}));};
   const change=(id,value)=>{const el=d.getElementById(id);el.value=value;el.dispatchEvent(new w.Event('change',{bubbles:true}));};
-  return {dom,w,d,requests,input,change,keys:()=>JSON.parse(keys),eval:code=>vm.runInContext(code,context),delay:fn=>delayed=fn,lastRun:()=>lastRun,provisionCalls};
+  return {dom,w,d,requests,input,change,keys:()=>JSON.parse(keys),eval:code=>vm.runInContext(code,context),delay:fn=>delayed=fn,lastRun:()=>lastRun,provisionCalls,failProvision:v=>{provisionShouldFail=!!v;}};
 }
 async function setup(t,options) {
   const a=app(options);t.after(()=>a.dom.window.close());
@@ -338,6 +339,29 @@ test('missing key is restored from the runner backup on connect',async t=>{
   const a=await setup(t,{profile:savedProfile(),vault:{},keyBackup:backup});
   await wait(()=>a.eval('profileKey')==='restored-key');
   assert.match(a.d.querySelector('#toast').textContent,/restored/);
+});
+test('failed provisioning resets the flag so it can be retried',async t=>{
+  const a=await setup(t,{sharedUrl:'https://shared.example',startUnpaired:true});
+  await wait(()=>a.provisionCalls.length===1);
+  a.failProvision(true);
+  a.eval('provisionAttempted=false; provisionShared()');
+  await wait(()=>a.provisionCalls.length===2);
+  await wait(()=>a.eval('provisionAttempted')===false);
+  assert.match(a.d.querySelector('#toast').textContent,/unavailable/i);
+  assert.match(a.d.querySelector('#run-status').textContent,/retry/i);
+});
+test('pair() re-provisions instead of showing the manual dialog on shared builds',async t=>{
+  const a=await setup(t,{sharedUrl:'https://shared.example',startUnpaired:true});
+  await wait(()=>a.provisionCalls.length===1);
+  a.eval('connected=false; pair()');
+  await wait(()=>a.provisionCalls.length===2);
+  assert.equal(a.eval('provisionAttempted'),true);
+  // and does nothing when already online
+  a.eval('connected=true');
+  const before=a.provisionCalls.length;
+  a.eval('pair()');
+  await new Promise(r=>setTimeout(r,100));
+  assert.equal(a.provisionCalls.length,before);
 });
 test('shared backend provisions the device silently on first launch',async t=>{
   const a=await setup(t,{sharedUrl:'https://shared.example',startUnpaired:true});
