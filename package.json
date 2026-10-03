@@ -1,0 +1,7 @@
+{
+  "name": "forge-agent-ui-tests",
+  "private": true,
+  "version": "0.4.0",
+  "scripts": { "test:ui": "node --test tests/ui.test.cjs" },
+  "devDependencies": { "jsdom": "26.0.0" }
+}

@@ -1,0 +1,10 @@
+# Railway deploy config for the Forge Agent runner.
+[build]
+builder = "dockerfile"
+
+[deploy]
+# Railway injects $PORT automatically; the Dockerfile honors it.
+# Required variables: FORGE_TOKEN (24+ characters, your pairing token).
+# Optional: GITHUB_TOKEN (keeps GitHub connected across restarts),
+# FORGE_WORKSPACE (defaults to /data — mount a volume there).
+numReplicas = 1

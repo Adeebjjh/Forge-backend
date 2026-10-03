@@ -1,0 +1,57 @@
+name: Build Android APK
+on:
+  workflow_dispatch:
+  push:
+    paths: ['android/**', 'web/**', 'runner/**', 'tests/**', '.github/workflows/android.yml']
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Stage on-device Python sources
+        run: |
+          python - <<'PYTHON'
+          import pathlib, shutil
+          dest = pathlib.Path('android/app/src/main/python/runner')
+          if dest.exists():
+              shutil.rmtree(dest)
+          shutil.copytree(pathlib.Path('runner'), dest, ignore=shutil.ignore_patterns('__pycache__'))
+          print('Staged', len(list(dest.glob('*.py'))), 'Python modules for Chaquopy')
+          PYTHON
+      - name: Install cloud test dependency
+        run: python -m pip install 'cryptography>=43,<47'
+      - name: Test runner
+        run: python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test provider interface
+        run: |
+          npm ci --ignore-scripts
+          npm run test:ui
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build preview APK and run Android lint
+        run: gradle -p android --no-daemon testDebugUnitTest assembleDebug lintDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Forge-Agent-preview-APK
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Android-lint-report
+          path: android/app/build/reports/lint-results-debug.html

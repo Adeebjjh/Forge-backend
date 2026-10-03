@@ -1,0 +1,42 @@
+plugins { id 'com.android.application'; id 'com.chaquo.python' }
+
+android {
+    namespace 'dev.forge.agent'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'dev.forge.agent'
+        minSdk 26
+        targetSdk 35
+        versionCode 5
+        versionName '0.5.0'
+        // Required by the Chaquopy plugin: without ndk.abiFilters the build
+        // fails at configuration time ("Chaquopy requires ndk.abiFilters").
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'
+        }
+    }
+    sourceSets { main { assets.srcDirs = ['../../web'] } }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildTypes {
+        debug { applicationIdSuffix '.preview' }
+        release { minifyEnabled false }
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        // Embedded CPython that powers the on-device runner (runner/device.py).
+        // The Forge runner is stdlib-only, so no pip packages are required.
+        // NOTE: Chaquopy 15+ uses property-assignment DSL (version = "...");
+        // the old method-call form (version "...") fails configuration.
+        version = "3.11"
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+}

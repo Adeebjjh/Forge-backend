@@ -1,0 +1,84 @@
+# Phone-only setup: copy this entire file into your repository as
+# .github/workflows/build-apk.yml and commit it. No source upload or API key is required.
+# After a successful run, download Forge-Agent-APK from the Actions run's Artifacts section.
+# Forge Agent 0.4: universal APIs, on-device runner, GitHub fetching, AI skill builder.
+name: Build Forge APK
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-apk.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Restore bundled source
+        run: |
+          python - <<'PYTHON'
+          import base64, hashlib, io, os, pathlib, zipfile
+          raw = base64.b64decode('''
+__SOURCE_B64__
+          ''')
+          if hashlib.sha256(raw).hexdigest() != '__SOURCE_SHA__':
+              raise SystemExit('Source archive checksum mismatch')
+          target = pathlib.Path('bundled-source').resolve()
+          target.mkdir(exist_ok=True)
+          with zipfile.ZipFile(io.BytesIO(raw)) as z:
+              for item in z.infolist():
+                  destination = (target / item.filename).resolve()
+                  if not destination.is_relative_to(target):
+                      raise SystemExit('Unsafe archive path')
+              z.extractall(target)
+          print('Source restored and checksum verified')
+          PYTHON
+      - name: Stage on-device Python sources
+        run: |
+          python - <<'PYTHON'
+          import pathlib, shutil
+          src = pathlib.Path('bundled-source/forge-agent/runner')
+          dest = pathlib.Path('bundled-source/forge-agent/android/app/src/main/python/runner')
+          if dest.exists():
+              shutil.rmtree(dest)
+          shutil.copytree(src, dest, ignore=shutil.ignore_patterns('__pycache__'))
+          print('Staged', len(list(dest.glob('*.py'))), 'Python modules for Chaquopy')
+          PYTHON
+      - name: Install cloud test dependency
+        run: python -m pip install 'cryptography>=43,<47'
+      - name: Test coding runner
+        working-directory: bundled-source/forge-agent
+        run: python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test provider interface
+        working-directory: bundled-source/forge-agent
+        run: |
+          npm ci --ignore-scripts
+          npm run test:ui
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build APK and run Android lint
+        run: gradle -p bundled-source/forge-agent/android --no-daemon testDebugUnitTest assembleDebug lintDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Forge-Agent-APK
+          path: bundled-source/forge-agent/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Android-lint-report
+          path: bundled-source/forge-agent/android/app/build/reports/lint-results-debug.html

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101413"><title>Forge Agent</title><link rel="stylesheet" href="style.css"><script defer src="shared.js"></script><script defer src="app.js"></script><script defer src="cloud.js"></script></head>
+<body>
+<div class="app">
+  <header>
+    <button id="menu" class="icon-btn" aria-label="Open chats">☰</button>
+    <div class="brand"><span class="logo">f_</span><div>forge<span class="subtitle">AI AGENT</span></div></div>
+    <button id="connection" class="pill"><i></i><span>Connect</span></button>
+  </header>
+  <aside id="chats-drawer" hidden aria-label="Chats">
+    <div class="drawer-top"><span class="eyebrow">CHATS</span><button id="drawer-close" class="icon-btn" aria-label="Close chats">✕</button></div>
+    <button id="drawer-new" class="primary">+ New chat</button>
+    <div id="chats-list"></div>
+  </aside>
+  <div id="drawer-scrim" hidden></div>
+  <main>
+    <section id="chat" class="page active">
+      <div id="feed" aria-live="polite"></div>
+      <div id="approvals"></div>
+      <div class="composer">
+        <div class="composer-tools">
+          <select id="chat-model" aria-label="Model"></select>
+          <button id="skills-btn" class="icon-btn" aria-label="Skills" title="Skills">✦</button>
+          <button id="attach" class="icon-btn" aria-label="Attach files" title="Attach files (5 MB each)">📎</button>
+          <input type="file" id="attach-input" hidden multiple>
+          <span id="attach-chip" class="attach-chip" hidden></span>
+        </div>
+        <div class="composer-main">
+          <textarea id="prompt" rows="2" placeholder="Message Forge…" aria-label="Message"></textarea>
+          <button id="send" class="primary send-btn" aria-label="Send">↑</button>
+        </div>
+        <div class="composer-status"><span id="run-status" role="status"></span><button id="stop" class="danger" hidden>Stop</button></div>
+      </div>
+    </section>
+    <section id="files" class="page">
+      <div class="section-top"><span class="eyebrow">PROJECT FILES</span><button id="refresh-files" class="ghost">Refresh ↻</button></div>
+      <div class="file-actions"><input id="file-filter" placeholder="Filter files…" aria-label="Filter files"><button id="new-file" class="secondary">+ New</button></div>
+      <div id="file-list" class="card empty">Connect a runner to browse your project.</div>
+      <div id="editor-panel" hidden><label for="file-path">Relative file path</label><input id="file-path" placeholder="src/example.py"><label for="file-content">Contents</label><textarea id="file-content" class="code" rows="14" spellcheck="false"></textarea><button id="save-file" class="primary">Save file</button> <button id="close-editor" class="ghost">Close</button></div>
+      <div class="card"><h3>Fetch from GitHub</h3><p class="muted">Copy a repo into this project.</p><div class="file-actions"><input id="fetch-repo" placeholder="owner/repo" aria-label="Repository"><input id="fetch-ref" placeholder="main" aria-label="Branch or tag" style="max-width:7em"><input id="fetch-dest" placeholder="folder (optional)" aria-label="Destination folder"></div><button id="fetch-button" class="secondary">Fetch repository</button></div>
+    </section>
+    <section id="cloud" class="page">
+      <div class="card" id="device-card">
+        <div class="section-top"><span class="eyebrow">ON-DEVICE RUNNER</span><span id="device-badge" class="tag">…</span></div>
+        <h3>This phone is the computer</h3>
+        <p id="device-status" class="muted">Python and coding tools run right here — no cloud machine needed.</p>
+        <p id="device-workspace" class="hint"></p>
+        <div class="cloud-actions"><button id="device-start" class="primary">Start</button><button id="device-stop" class="danger" hidden>Stop</button></div>
+      </div>
+      <div class="card cloud-hero" id="railway-card">
+        <div class="section-top"><span class="eyebrow">RAILWAY CLOUD RUNNER</span><span class="tag">BUILT-IN</span></div>
+        <h3>A workspace in the cloud</h3>
+        <p class="muted">Forge's built-in cloud: your own always-on runner on Railway. Deploy once, then it just works.</p>
+        <ol class="steps">
+          <li>Tap <strong>Deploy on Railway</strong> and create the service from your repo — the included <code>Dockerfile</code> starts the runner.</li>
+          <li>Set a <code>FORGE_TOKEN</code> variable (24+ characters, keep it secret).</li>
+          <li>Add a Railway volume mounted at <code>/data</code> so your workspace and saved keys survive restarts.</li>
+        </ol>
+        <div class="cloud-actions"><button id="railway-deploy" class="secondary">Deploy on Railway ↗</button><button id="railway-connect" class="primary">Connect</button></div>
+        <p class="hint">Enter the Railway URL (https://…) and your pairing token. Traffic is encrypted with HTTPS. The app reconnects automatically on launch.</p>
+      </div>
+      <div class="card">
+        <div class="section-top"><span class="eyebrow">GITHUB</span><span id="github-badge" class="tag">…</span></div>
+        <h3>Let Forge work with your repos</h3>
+        <p id="github-status" class="muted">Connect GitHub so the agent can read your repositories and open pull requests.</p>
+        <div id="github-form">
+          <label for="github-token">Personal access token</label>
+          <div class="secret-input"><input id="github-token" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="ghp_… or fine-grained token"><button id="github-show" type="button" class="ghost">Show</button></div>
+          <div class="cloud-actions"><button id="github-connect" class="primary">Connect GitHub</button></div>
+          <p class="hint">Use a fine-grained token with <strong>Contents</strong> (read/write) and <strong>Pull requests</strong> (write) on the repos you want. It lives in the runner's memory — set <code>GITHUB_TOKEN</code> on Railway to keep it across restarts.</p>
+        </div>
+        <div class="cloud-actions"><button id="github-disconnect" class="danger" hidden>Disconnect</button></div>
+      </div>
+    </section>
+  </main>
+  <nav aria-label="Main navigation">
+    <button data-page="chat" class="active"><span>💬</span>Chat</button>
+    <button data-page="files"><span>📁</span>Files</button>
+    <button data-page="cloud"><span>☁️</span>Cloud</button>
+  </nav>
+</div>
+<dialog id="setup-dialog" aria-label="Set up your model">
+  <form id="setup-form" method="dialog">
+    <div class="section-top"><h2>Your model</h2><button type="button" id="setup-cancel" class="icon-btn" aria-label="Close">✕</button></div>
+    <p class="muted">Pick a provider, paste a key, load its models. Done once — then it's just the dropdown in your chat box.</p>
+    <label for="setup-preset">Provider preset</label>
+    <select id="setup-preset"></select>
+    <label for="setup-name">Name</label>
+    <input id="setup-name" placeholder="My provider" autocomplete="off">
+    <label for="setup-url">API base URL</label>
+    <input id="setup-url" type="url" placeholder="https://api.your-provider.com/v1" autocomplete="off" autocapitalize="none" spellcheck="false">
+    <label for="setup-key">API key</label>
+    <div class="secret-input"><input id="setup-key" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Paste your key"><button id="setup-show-key" type="button" class="ghost">Show</button></div>
+    <div class="setup-row">
+      <div><label for="setup-kind">API format</label><select id="setup-kind"><option value="custom">OpenAI Chat Completions</option><option value="anthropic">Claude Messages</option><option value="responses">OpenAI Responses</option><option value="gemini">Google Gemini</option><option value="azure">Azure OpenAI</option><option value="ollama">Ollama</option></select></div>
+      <div><label for="setup-auth">Key header</label><select id="setup-auth"><option value="auto">Provider default</option><option value="bearer">Authorization: Bearer</option><option value="api-key">x-api-key</option><option value="api-key-header">api-key</option><option value="x-goog-api-key">x-goog-api-key</option><option value="none">None · local</option><option value="custom">Custom…</option></select></div>
+    </div>
+    <div id="setup-header-row" hidden><label for="setup-header">Custom header name</label><input id="setup-header" placeholder="X-API-Key" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+    <p id="setup-endpoint" class="endpoint-preview"></p>
+    <button id="setup-discover" type="button" class="secondary">Discover models</button>
+    <div id="setup-model-row" hidden><label for="setup-model">Model</label><select id="setup-model"></select></div>
+    <div id="setup-notice" class="notice" role="status" hidden></div>
+    <div class="setup-actions"><button id="setup-test" type="button" class="secondary">Test chat</button><button id="setup-save" type="button" class="primary">Save &amp; use</button></div>
+    <p class="hint">On Android your key is encrypted on-device. Test chat sends one short request and may use a little provider credit.</p>
+  </form>
+</dialog>
+<dialog id="pair-dialog"><form id="pair-form"><span class="eyebrow">CONNECT YOUR WORKSPACE</span><h2>Pair with your runner.</h2><p class="muted">Enter the pairing token. In the Android app you can also enter a Railway URL.</p><label for="pair-token">Pairing token</label><input id="pair-token" type="password" autocomplete="off" required><button class="primary" type="submit">Connect</button> <button type="button" id="close-pair" class="ghost">Cancel</button></form></dialog>
+<dialog id="skills-dialog" aria-label="Skills"><div class="section-top"><h2>Skills</h2><button type="button" id="skills-close" class="icon-btn" aria-label="Close">✕</button></div><p class="muted">Reusable capabilities loaded into your next task.</p><div id="skills-list"></div><button id="skills-done" class="primary" style="width:100%">Done</button></dialog>
+<div id="toast" role="status" hidden></div>
+</body></html>

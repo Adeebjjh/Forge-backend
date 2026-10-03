@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+android/.gradle/
+android/local.properties
+**/build/
+*.keystore
+*.jks
+*.apk
+*.pem
+
+node_modules/
+.ui-test-deps/
